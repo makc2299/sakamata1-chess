@@ -20,11 +20,11 @@ public class Launcher {
 
         ChessBoard cb = new ChessBoard("4k3/8/8/8/8/8/8/R3K2R w KQ - 0 1");
 
-        cb.printBoard();
-        cb.makeMove(1597763);
-        cb.printBoard();
-        cb.unmakeMove(1597763);
-        cb.printBoard();
+//        cb.printBoard();
+//        cb.makeMove(1597763);
+//        cb.printBoard();
+//        cb.unmakeMove(1597763);
+//        cb.printBoard();
 
         // 16448 - rook move to break castling
         // 24707 - king move to break castling
