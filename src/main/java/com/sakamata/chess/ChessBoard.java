@@ -26,7 +26,11 @@ public class ChessBoard {
     public int phase;
     public long checkingPieces, pinnedPieces, discoveredPieces;
 
-    public long moveCounter = 0;
+    public long[] moveCounter = {0, 0, 0, 0, 0, 0, 0, 0};
+    public long[] captureCounter = {0, 0, 0, 0, 0, 0, 0, 0};
+    public long[] enpassCounter = {0, 0, 0, 0, 0, 0, 0, 0};
+    public long[] castlingCounter = {0, 0, 0, 0, 0, 0, 0, 0};
+    public long[] promotionCounter = {0, 0, 0, 0, 0, 0, 0, 0};
 
     public ChessBoard() {
         applyFen(ChessConstants.FEN_START);
@@ -36,9 +40,26 @@ public class ChessBoard {
         applyFen(fen);
     }
 
-    public void makeMove(int move) {
+    private void increaseCounter(int move, int ply) {
+        moveCounter[ply]++;
+        if (MoveEncoder.getAttackedPieceIndex(move) != 0) {
+            captureCounter[ply]++;
+        }
+        if (MoveEncoder.isEPMove(move)) {
+            enpassCounter[ply]++;
+        }
+        if (MoveEncoder.isCastlingMove(move)) {
+            castlingCounter[ply]++;
+        }
+        if (MoveEncoder.isPromotion(move)) {
+            promotionCounter[ply]++;
+        }
 
-        moveCounter++;
+    }
+
+    public void makeMove(int move, int ply) {
+
+        increaseCounter(move, ply);
 
         final int fromIndex = MoveEncoder.getFromIndex(move);
         int toIndex = MoveEncoder.getToIndex(move);
@@ -147,9 +168,17 @@ public class ChessBoard {
 //                    pawnZobristKey ^= Zobrist.piece[colorToMoveInverse][PAWN][toIndex];
                 }
                 break;
+            case ROOK:
+                if (MoveEncoder.getCastling(move) != 0) {
+                    castlingRights = MoveEncoder.getCastling(move);
+                }
+                break;
             case KING:
                 if (MoveEncoder.isCastlingMove(move)) {
                     CastlingUtil.uncastleRookUpdate(this, toIndex);
+                    castlingRights = MoveEncoder.getCastling(move);
+                } else if (MoveEncoder.getCastling(move) != 0) {
+                    castlingRights = MoveEncoder.getCastling(move);
                 }
                 kingIndex[sideToMoveInverse] = fromIndex;
         }
@@ -161,8 +190,13 @@ public class ChessBoard {
             case PAWN:
                 if (MoveEncoder.isEPMove(move)) {
                     piecesIndexBoard[toIndex] = EMPTY;
+                    epIndex = toIndex;
                     toIndex += EN_PASSANT_SHIFT[sideToMove];
                     toMask = Square.getByIndex(toIndex).bitboard;
+                }
+            case ROOK:
+                if (MoveEncoder.getCastling(move) != 0) {
+                    castlingRights = MoveEncoder.getCastling(move);
                 }
                 // fall-through
             default:
@@ -373,7 +407,7 @@ public class ChessBoard {
             long slidingCheckingPiece = (pieces[enemyColor][BISHOP] | pieces[enemyColor][QUEEN]) & PrecalculatedMoves.getBishopAttack(kingIndex[kingColor], 0L)
                     | (pieces[enemyColor][ROOK] | pieces[enemyColor][QUEEN]) & PrecalculatedMoves.getRookAttack(kingIndex[kingColor], 0L);
             while (slidingCheckingPiece != 0) {
-                pinnedPiece = SEGMENTS[kingIndex[kingColor]][Bitboard.indexOfLSBit(slidingCheckingPiece)] & allPieces;
+                pinnedPiece = SEGMENTS[kingIndex[kingColor]][Long.numberOfTrailingZeros(slidingCheckingPiece)] & allPieces;
                 if (pinnedPiece == 0) {
                     checkingPieces |= Long.lowestOneBit(slidingCheckingPiece);
                 } else if (Long.bitCount(pinnedPiece) == 1) {

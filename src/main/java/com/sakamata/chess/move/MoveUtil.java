@@ -13,10 +13,10 @@ public class MoveUtil {
         if ((board.pieces[board.sideToMoveInverse][KNIGHT] & PrecalculatedMoves.KNIGHT_MOVES[square]) != 0)
             return true;
         if (((board.pieces[board.sideToMoveInverse][ROOK] | board.pieces[board.sideToMoveInverse][QUEEN]) &
-                PrecalculatedMoves.getRookAttack(square, board.allPieces)) != 0)
+                PrecalculatedMoves.getRookAttack(square, board.allPieces ^ board.pieces[board.sideToMove][KING])) != 0)
             return true;
         if (((board.pieces[board.sideToMoveInverse][BISHOP] | board.pieces[board.sideToMoveInverse][QUEEN]) &
-                PrecalculatedMoves.getBishopAttack(square, board.allPieces)) != 0)
+                PrecalculatedMoves.getBishopAttack(square, board.allPieces ^ board.pieces[board.sideToMove][KING])) != 0)
             return true;
         return (board.pieces[board.sideToMoveInverse][KING] & PrecalculatedMoves.KING_MOVES[square]) != 0;
     }

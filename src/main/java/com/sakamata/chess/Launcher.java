@@ -18,25 +18,48 @@ public class Launcher {
 
     public static void main(String[] args) {
 
-        ChessBoard cb = new ChessBoard("4k3/8/8/8/8/8/8/R3K2R w KQ - 0 1");
+        ChessBoard cb = new ChessBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        cb.printBoard();
 
-//        cb.printBoard();
-//        cb.makeMove(1597763);
-//        cb.printBoard();
-//        cb.unmakeMove(1597763);
-//        cb.printBoard();
 
-        // 16448 - rook move to break castling
-        // 24707 - king move to break castling
-        // 1597507 - castling move 1
-        // 1597763 - castling move 2
-
-//        int depth = 1;
-//        perft(cb, new MoveHolder(), depth);
-//        System.out.println("depth - " + depth + " moves : " + cb.moveCounter);
+//        MoveHolder moveHolder = new MoveHolder();
+//        MoveGenerator.generateLegalMoves(cb, moveHolder);
+//        MoveGenerator.generateLegalAttacks(cb, moveHolder);
 //
+//        for (int move : moveHolder.moves) {
+//            if (move != 0)
+//                System.out.println("( " + move + " )  " + (MoveEncoder.isPromotion(move) ? MoveEncoder.getMoveType(move) : "") + " \t"
+//                        + Square.getByIndex(MoveEncoder.getFromIndex(move)) + " -> " + Square.getByIndex(MoveEncoder.getToIndex(move)));
+//        }
+
 //        cb.printBoard();
+//        printPiecesIndexBoard(cb.piecesIndexBoard);
 //
+//        System.out.println("\nMAKE MOVE   ");
+//        cb.makeMove(3415860, 0);
+//        cb.printBoard();
+//        printPiecesIndexBoard(cb.piecesIndexBoard);
+//
+//        System.out.println("\nUNMAKE MOVE   ");
+//        cb.unmakeMove(3415860);
+//        cb.printBoard();
+//        printPiecesIndexBoard(cb.piecesIndexBoard);
+
+        // 50348096 - rook move to break castling
+        // 50356355 - king move to break castling
+        // 51929155 - castling move 1
+        // 51929411 - castling move 2
+
+        int depth = 6;
+        perft(cb, new MoveHolder(), depth, 0);
+        for (int i = 0; i < depth; i++) {
+            System.out.println(" Depth : " + (i + 1) + "\t\tNodes : " + cb.moveCounter[i] + "\t\tCaptures : " + cb.captureCounter[i] +
+                    "\t\tE.p. : " + cb.enpassCounter[i] + "\t\tCastles : " + cb.castlingCounter[i] + "\t\tPromotions : " + cb.promotionCounter[i]);
+            System.out.println("\n");
+        }
+        cb.printBoard();
+
+////
 //        System.out.println(Arrays.toString(moveHolder.moves));
 //        for (int move : moveHolder.moves) {
 //            if (move != 0)
@@ -83,7 +106,7 @@ public class Launcher {
         return random.nextInt(max - min) + min;
     }
 
-    public static void perft(ChessBoard board, MoveHolder moveHolder, int depth) {
+    public static void perft(ChessBoard board, MoveHolder moveHolder, int depth, int ply) {
 
         if (depth == 0)
             return;
@@ -94,11 +117,20 @@ public class Launcher {
         for (int i = 0; i < moveHolder.count; i++) {
 
             int move = moveHolder.moves[i];
-            board.makeMove(move);
-            perft(board, new MoveHolder(), depth - 1);
+            board.makeMove(move, ply);
+            perft(board, new MoveHolder(), depth - 1, ply + 1);
             board.unmakeMove(move);
         }
 
+    }
+
+    public static void printPiecesIndexBoard(int[] piecesIndexBoard) {
+        for (int i = 63; i >= 0; i-= 8) {
+            for (int j = i; j > (i - 8); j--) {
+                System.out.print(piecesIndexBoard[j] + " ");
+            }
+            System.out.println();
+        }
     }
 
 }

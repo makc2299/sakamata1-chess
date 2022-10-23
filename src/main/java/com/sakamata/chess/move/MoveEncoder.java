@@ -19,9 +19,11 @@ public class MoveEncoder {
     private static final int SHIFT_ATTACK = 15; // 3
     private static final int SHIFT_MOVE_TYPE = 18; // 3
     private static final int SHIFT_PROMOTION = 21; // 1
+    private static final int SHIFT_CASTLING = 22; // 4
 
     // masks
-    private static final int MASK_3_BITS = 7; // 6
+    private static final int MASK_3_BITS = 7; // 3
+    private static final int MASK_4_BITS = 15; // 4
     private static final int MASK_6_BITS = 0x3f; // 6
     private static final int MASK_12_BITS = 0xfff;
 
@@ -53,8 +55,20 @@ public class MoveEncoder {
         return move >>> SHIFT_MOVE_TYPE & MASK_3_BITS;
     }
 
+    public static int getCastling(final int move) {
+        return move >>> SHIFT_CASTLING & MASK_4_BITS;
+    }
+
     public static int createMove(final int fromIndex, final int toIndex, final int sourcePieceIndex) {
         return sourcePieceIndex << SHIFT_SOURCE | toIndex << SHIFT_TO | fromIndex;
+    }
+
+    public static int createKingMove(final int fromIndex, final int toIndex, final int castlingRights) {
+        return castlingRights << SHIFT_CASTLING | KING << SHIFT_SOURCE | toIndex << SHIFT_TO | fromIndex;
+    }
+
+    public static int createRookMove(final int fromIndex, final int toIndex, final int castlingRights) {
+        return castlingRights << SHIFT_CASTLING | ROOK << SHIFT_SOURCE | toIndex << SHIFT_TO | fromIndex;
     }
 
     public static int createWhitePawnMove(final int fromIndex) {
@@ -77,21 +91,25 @@ public class MoveEncoder {
         return 1 << SHIFT_PROMOTION | promotionPiece << SHIFT_MOVE_TYPE | PAWN << SHIFT_SOURCE | toIndex << SHIFT_TO | fromIndex;
     }
 
-    public static int createAttackMove(final int fromIndex, final int toIndex, final int sourcePieceIndex, final int attackedPieceIndex) {
-        return attackedPieceIndex << SHIFT_ATTACK | sourcePieceIndex << SHIFT_SOURCE | toIndex << SHIFT_TO | fromIndex;
+    public static int createAttackMove(final int fromIndex, final int toIndex, final int sourcePieceIndex,
+                                       final int attackedPieceIndex, final int castlingRights) {
+        return castlingRights << SHIFT_CASTLING | attackedPieceIndex << SHIFT_ATTACK | sourcePieceIndex << SHIFT_SOURCE |
+                toIndex << SHIFT_TO | fromIndex;
     }
 
-    public static int createPromotionAttack(final int promotionPiece, final int fromIndex, final int toIndex, final int attackedPieceIndex) {
-        return 1 << SHIFT_PROMOTION | promotionPiece << SHIFT_MOVE_TYPE | attackedPieceIndex << SHIFT_ATTACK | PAWN << SHIFT_SOURCE
-                | toIndex << SHIFT_TO | fromIndex;
+    public static int createPromotionAttack(final int promotionPiece, final int fromIndex, final int toIndex,
+                                            final int attackedPieceIndex, final int castlingRights) {
+        return castlingRights << SHIFT_CASTLING | 1 << SHIFT_PROMOTION | promotionPiece << SHIFT_MOVE_TYPE |
+                attackedPieceIndex << SHIFT_ATTACK | PAWN << SHIFT_SOURCE | toIndex << SHIFT_TO | fromIndex;
     }
 
     public static int createEPMove(final int fromIndex, final int toIndex) {
         return TYPE_EP << SHIFT_MOVE_TYPE | PAWN << SHIFT_ATTACK | PAWN << SHIFT_SOURCE | toIndex << SHIFT_TO | fromIndex;
     }
 
-    public static int createCastlingMove(final int fromIndex, final int toIndex) {
-        return TYPE_CASTLING << SHIFT_MOVE_TYPE | KING << SHIFT_SOURCE | toIndex << SHIFT_TO | fromIndex;
+    public static int createCastlingMove(final int fromIndex, final int toIndex, final int castlingRights) {
+        return castlingRights << SHIFT_CASTLING | TYPE_CASTLING << SHIFT_MOVE_TYPE | KING << SHIFT_SOURCE |
+                toIndex << SHIFT_TO | fromIndex;
     }
 
     public static boolean isPromotion(final int move) {
