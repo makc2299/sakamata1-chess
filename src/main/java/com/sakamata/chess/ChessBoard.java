@@ -54,7 +54,88 @@ public class ChessBoard {
         if (MoveEncoder.isPromotion(move)) {
             promotionCounter[ply]++;
         }
+    }
 
+    public void makeMove(int move) {
+
+        final int fromIndex = MoveEncoder.getFromIndex(move);
+        int toIndex = MoveEncoder.getToIndex(move);
+        final int sourcePieceIndex = MoveEncoder.getSourcePieceIndex(move);
+        final int attackedPieceIndex = MoveEncoder.getAttackedPieceIndex(move);
+
+        long toMask = 1L << toIndex;
+        final long fromToMask = (1L << fromIndex) ^ toMask;
+
+        if (epIndex != 0) {
+            epIndex = 0;
+        }
+
+        pieces[sideToMove][ALL] ^= fromToMask;
+        pieces[sideToMove][sourcePieceIndex] ^= fromToMask;
+        piecesIndexBoard[fromIndex] = EMPTY;
+        piecesIndexBoard[toIndex] = sourcePieceIndex;
+
+        switch (sourcePieceIndex) {
+            case PAWN:
+                if (MoveEncoder.isPromotion(move)) {
+                    pieces[sideToMove][PAWN] ^= toMask;
+                    pieces[sideToMove][MoveEncoder.getMoveType(move)] |= toMask;
+                    piecesIndexBoard[toIndex] = MoveEncoder.getMoveType(move);
+                } else {
+                    // 2-move
+                    if (SEGMENTS[fromIndex][toIndex] != 0) {
+                        if ((PrecalculatedMoves.PAWN_ATTACKS[sideToMove][Long.numberOfTrailingZeros(SEGMENTS[fromIndex][toIndex])]
+                                & pieces[sideToMoveInverse][PAWN]) != 0) {
+                            epIndex = Long.numberOfTrailingZeros(SEGMENTS[fromIndex][toIndex]);
+                        }
+                    }
+                }
+                break;
+
+            case ROOK:
+                if (castlingRights != 0) {
+                    castlingRights = CastlingUtil.getCastlingRightsAfterRookMovedOrAttacked(castlingRights, fromIndex);
+                }
+                break;
+
+            case KING:
+                kingIndex[sideToMove] = toIndex;
+                if (castlingRights != 0) {
+                    if (MoveEncoder.isCastlingMove(move)) {
+                        CastlingUtil.castleRookUpdate(this, toIndex);
+                    }
+                    castlingRights = CastlingUtil.getCastlingRightsAfterKingMoved(castlingRights, fromIndex);
+                }
+        }
+
+        // piece hit?
+        switch (attackedPieceIndex) {
+            case EMPTY:
+                break;
+            case PAWN:
+                if (MoveEncoder.isEPMove(move)) {
+                    toIndex += EN_PASSANT_SHIFT[sideToMoveInverse];
+                    toMask = Square.getByIndex(toIndex).bitboard;
+                    piecesIndexBoard[toIndex] = EMPTY;
+                }
+                pieces[sideToMoveInverse][ALL] ^= toMask;
+                pieces[sideToMoveInverse][PAWN] ^= toMask;
+                break;
+            case ROOK:
+                if (castlingRights != 0) {
+                    castlingRights = CastlingUtil.getCastlingRightsAfterRookMovedOrAttacked(castlingRights, toIndex);
+                }
+                // fall-through
+            default:
+                pieces[sideToMoveInverse][ALL] ^= toMask;
+                pieces[sideToMoveInverse][attackedPieceIndex] ^= toMask;
+        }
+
+        allPieces = pieces[sideToMove][ALL] | pieces[sideToMoveInverse][ALL];
+        emptySpaces = ~allPieces;
+        sideToMove = sideToMoveInverse;
+        sideToMoveInverse ^= 1;
+        setCheckingPinnedDiscoveredPieces();
     }
 
     public void makeMove(int move, int ply) {
@@ -217,8 +298,8 @@ public class ChessBoard {
         allPieces = pieces[WHITE][ALL] | pieces[BLACK][ALL];
         emptySpaces = ~allPieces;
 
-        kingIndex[WHITE] = Bitboard.indexOfLSBit(pieces[WHITE][KING]);
-        kingIndex[BLACK] = Bitboard.indexOfLSBit(pieces[BLACK][KING]);
+        kingIndex[WHITE] = Long.numberOfTrailingZeros(pieces[WHITE][KING]);
+        kingIndex[BLACK] = Long.numberOfTrailingZeros(pieces[BLACK][KING]);
 
         sideToMoveInverse = sideToMove ^ 1;
 

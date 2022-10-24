@@ -166,7 +166,7 @@ public class MagicUtil {
         long occupancy = 0L;
 
         for (int count = 0; count < relevantBitNumber; count++) {
-            int square = Bitboard.indexOfLSBit(relevantOccupancyMask);
+            int square = Long.numberOfTrailingZeros(relevantOccupancyMask);
             relevantOccupancyMask ^= Bitboard.toBit(square);
 
             if ((index & (1 << count)) != 0)

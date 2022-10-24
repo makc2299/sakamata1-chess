@@ -57,7 +57,7 @@ public class MoveGenerator {
 
     }
 
-    private static void generateAttackMoves(ChessBoard board, MoveHolder moveHolder) {
+    private static void generateAttackMoves(final ChessBoard board, final MoveHolder moveHolder) {
         addEpAttacks(moveHolder, board);
         final long nonPinned = ~board.pinnedPieces;
         final long enemies = board.pieces[board.sideToMoveInverse][ALL];

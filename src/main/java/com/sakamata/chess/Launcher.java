@@ -18,9 +18,8 @@ public class Launcher {
 
     public static void main(String[] args) {
 
-        ChessBoard cb = new ChessBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        ChessBoard cb = new ChessBoard("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
         cb.printBoard();
-
 
 //        MoveHolder moveHolder = new MoveHolder();
 //        MoveGenerator.generateLegalMoves(cb, moveHolder);
@@ -50,13 +49,19 @@ public class Launcher {
         // 51929155 - castling move 1
         // 51929411 - castling move 2
 
-        int depth = 6;
+        int depth = 5;
+
+        long startTime = System.currentTimeMillis();
         perft(cb, new MoveHolder(), depth, 0);
+        long endTime = System.currentTimeMillis();
+
         for (int i = 0; i < depth; i++) {
             System.out.println(" Depth : " + (i + 1) + "\t\tNodes : " + cb.moveCounter[i] + "\t\tCaptures : " + cb.captureCounter[i] +
                     "\t\tE.p. : " + cb.enpassCounter[i] + "\t\tCastles : " + cb.castlingCounter[i] + "\t\tPromotions : " + cb.promotionCounter[i]);
-            System.out.println("\n");
+            System.out.println();
         }
+        System.out.println("Time : " + (endTime - startTime) / 1000.0 + " sec.\n");
+
         cb.printBoard();
 
 ////
