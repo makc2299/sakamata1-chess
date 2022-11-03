@@ -4,6 +4,8 @@ public class ChessConstants {
 
     public static final String FEN_START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
+    public static final String FEN_VALIDATION_REGEX = "^(((?:[rnbqkpRNBQKP1-8]{1,8}\\/){7})[rnbqkpRNBQKP1-8]{1,8})\\s([b|w])\\s([-|—]|([K|Q|k|q]{1,4}))(\\s([-|—]|[a-h][3|6]))?\\s?(\\d+\\s([1-9][0-9]*)+)?\\s?$";
+
     public static final int EMPTY = 0;
     public static final int ALL = 0;
     public static final int PAWN = 1;

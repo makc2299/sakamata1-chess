@@ -2,6 +2,7 @@ package com.sakamata.chess;
 
 import com.sakamata.chess.maintenance.ChessConstants;
 import com.sakamata.chess.move.MoveEncoder;
+import com.sakamata.chess.move.MoveUtil;
 import com.sakamata.chess.move.PrecalculatedMoves;
 import com.sakamata.chess.maintenance.Square;
 
@@ -26,34 +27,12 @@ public class ChessBoard {
     public int phase;
     public long checkingPieces, pinnedPieces, discoveredPieces;
 
-    public long[] moveCounter = {0, 0, 0, 0, 0, 0, 0, 0};
-    public long[] captureCounter = {0, 0, 0, 0, 0, 0, 0, 0};
-    public long[] enpassCounter = {0, 0, 0, 0, 0, 0, 0, 0};
-    public long[] castlingCounter = {0, 0, 0, 0, 0, 0, 0, 0};
-    public long[] promotionCounter = {0, 0, 0, 0, 0, 0, 0, 0};
-
     public ChessBoard() {
         applyFen(ChessConstants.FEN_START);
     }
 
     public ChessBoard(String fen) {
         applyFen(fen);
-    }
-
-    private void increaseCounter(int move, int ply) {
-        moveCounter[ply]++;
-        if (MoveEncoder.getAttackedPieceIndex(move) != 0) {
-            captureCounter[ply]++;
-        }
-        if (MoveEncoder.isEPMove(move)) {
-            enpassCounter[ply]++;
-        }
-        if (MoveEncoder.isCastlingMove(move)) {
-            castlingCounter[ply]++;
-        }
-        if (MoveEncoder.isPromotion(move)) {
-            promotionCounter[ply]++;
-        }
     }
 
     public void makeMove(int move) {
@@ -133,92 +112,7 @@ public class ChessBoard {
 
         allPieces = pieces[sideToMove][ALL] | pieces[sideToMoveInverse][ALL];
         emptySpaces = ~allPieces;
-        sideToMove = sideToMoveInverse;
-        sideToMoveInverse ^= 1;
-        setCheckingPinnedDiscoveredPieces();
-    }
-
-    public void makeMove(int move, int ply) {
-
-        increaseCounter(move, ply);
-
-        final int fromIndex = MoveEncoder.getFromIndex(move);
-        int toIndex = MoveEncoder.getToIndex(move);
-        final int sourcePieceIndex = MoveEncoder.getSourcePieceIndex(move);
-        final int attackedPieceIndex = MoveEncoder.getAttackedPieceIndex(move);
-
-        long toMask = 1L << toIndex;
-        final long fromToMask = (1L << fromIndex) ^ toMask;
-
-        if (epIndex != 0) {
-            epIndex = 0;
-        }
-
-        pieces[sideToMove][ALL] ^= fromToMask;
-        pieces[sideToMove][sourcePieceIndex] ^= fromToMask;
-        piecesIndexBoard[fromIndex] = EMPTY;
-        piecesIndexBoard[toIndex] = sourcePieceIndex;
-
-        switch (sourcePieceIndex) {
-            case PAWN:
-                if (MoveEncoder.isPromotion(move)) {
-                    pieces[sideToMove][PAWN] ^= toMask;
-                    pieces[sideToMove][MoveEncoder.getMoveType(move)] |= toMask;
-                    piecesIndexBoard[toIndex] = MoveEncoder.getMoveType(move);
-                } else {
-                    // 2-move
-                    if (SEGMENTS[fromIndex][toIndex] != 0) {
-                        if ((PrecalculatedMoves.PAWN_ATTACKS[sideToMove][Long.numberOfTrailingZeros(SEGMENTS[fromIndex][toIndex])]
-                                & pieces[sideToMoveInverse][PAWN]) != 0) {
-                            epIndex = Long.numberOfTrailingZeros(SEGMENTS[fromIndex][toIndex]);
-                        }
-                    }
-                }
-                break;
-
-            case ROOK:
-                if (castlingRights != 0) {
-                    castlingRights = CastlingUtil.getCastlingRightsAfterRookMovedOrAttacked(castlingRights, fromIndex);
-                }
-                break;
-
-            case KING:
-                kingIndex[sideToMove] = toIndex;
-                if (castlingRights != 0) {
-                    if (MoveEncoder.isCastlingMove(move)) {
-                        CastlingUtil.castleRookUpdate(this, toIndex);
-                    }
-                    castlingRights = CastlingUtil.getCastlingRightsAfterKingMoved(castlingRights, fromIndex);
-                }
-        }
-
-        // piece hit?
-        switch (attackedPieceIndex) {
-            case EMPTY:
-                break;
-            case PAWN:
-                if (MoveEncoder.isEPMove(move)) {
-                    toIndex += EN_PASSANT_SHIFT[sideToMoveInverse];
-                    toMask = Square.getByIndex(toIndex).bitboard;
-                    piecesIndexBoard[toIndex] = EMPTY;
-                }
-                pieces[sideToMoveInverse][ALL] ^= toMask;
-                pieces[sideToMoveInverse][PAWN] ^= toMask;
-                break;
-            case ROOK:
-                if (castlingRights != 0) {
-                    castlingRights = CastlingUtil.getCastlingRightsAfterRookMovedOrAttacked(castlingRights, toIndex);
-                }
-                // fall-through
-            default:
-                pieces[sideToMoveInverse][ALL] ^= toMask;
-                pieces[sideToMoveInverse][attackedPieceIndex] ^= toMask;
-        }
-
-        allPieces = pieces[sideToMove][ALL] | pieces[sideToMoveInverse][ALL];
-        emptySpaces = ~allPieces;
-        sideToMove = sideToMoveInverse;
-        sideToMoveInverse ^= 1;
+        changeSideToMove();
         setCheckingPinnedDiscoveredPieces();
     }
 
@@ -288,8 +182,7 @@ public class ChessBoard {
         piecesIndexBoard[toIndex] = attackedPieceIndex;
         allPieces = pieces[sideToMove][ALL] | pieces[sideToMoveInverse][ALL];
         emptySpaces = ~allPieces;
-        sideToMove = sideToMoveInverse;
-        sideToMoveInverse ^= 1;
+        changeSideToMove();
         setCheckingPinnedDiscoveredPieces();
     }
 
@@ -316,6 +209,141 @@ public class ChessBoard {
         }
 
         setCheckingPinnedDiscoveredPieces();
+    }
+
+    public void changeSideToMove() {
+        sideToMove = sideToMoveInverse;
+        sideToMoveInverse ^= 1;
+    }
+
+    public void setCheckingPinnedDiscoveredPieces() {
+        pinnedPieces = 0;
+        discoveredPieces = 0;
+        checkingPieces = pieces[sideToMoveInverse][KNIGHT] & PrecalculatedMoves.KNIGHT_MOVES[kingIndex[sideToMove]]
+                | pieces[sideToMoveInverse][PAWN] & PrecalculatedMoves.PAWN_ATTACKS[sideToMove][kingIndex[sideToMove]];
+
+        int enemyColor;
+        long pinnedPiece;
+        for (int kingColor = WHITE; kingColor <= BLACK; kingColor++) {
+
+            enemyColor = kingColor ^ 1;
+
+            long slidingCheckingPiece = (pieces[enemyColor][BISHOP] | pieces[enemyColor][QUEEN]) & PrecalculatedMoves.getBishopAttack(kingIndex[kingColor], 0L)
+                    | (pieces[enemyColor][ROOK] | pieces[enemyColor][QUEEN]) & PrecalculatedMoves.getRookAttack(kingIndex[kingColor], 0L);
+            while (slidingCheckingPiece != 0) {
+                pinnedPiece = SEGMENTS[kingIndex[kingColor]][Long.numberOfTrailingZeros(slidingCheckingPiece)] & allPieces;
+                if (pinnedPiece == 0) {
+                    checkingPieces |= Long.lowestOneBit(slidingCheckingPiece);
+                } else if (Long.bitCount(pinnedPiece) == 1) {
+                    pinnedPieces |= pinnedPiece & pieces[kingColor][ALL];
+                    discoveredPieces |= pinnedPiece & pieces[enemyColor][ALL];
+                }
+                slidingCheckingPiece &= slidingCheckingPiece - 1;
+            }
+        }
+    }
+
+    public boolean isValidMove(final int move) {
+
+        // check if from index square not empty
+        final int fromIndex = MoveEncoder.getFromIndex(move);
+        final long fromSquare = Square.getByIndex(fromIndex).bitboard;
+        if ((pieces[sideToMove][MoveEncoder.getSourcePieceIndex(move)] & fromSquare) == 0) {
+            return false;
+        }
+
+        // check piece at to square
+        final int toIndex = MoveEncoder.getToIndex(move);
+        final long toSquare = Square.getByIndex(toIndex).bitboard;
+        final int attackedPieceIndex = MoveEncoder.getAttackedPieceIndex(move);
+        if (attackedPieceIndex == 0) {
+            if (piecesIndexBoard[toIndex] != EMPTY) {
+                return false;
+            }
+        } else {
+            if ((pieces[sideToMoveInverse][attackedPieceIndex] & toSquare) == 0 && !MoveEncoder.isEPMove(move)) {
+                return false;
+            }
+        }
+
+        // check if move is possible
+        switch (MoveEncoder.getSourcePieceIndex(move)) {
+            case PAWN:
+                if (MoveEncoder.isEPMove(move)) {
+                    if (toIndex != epIndex) {
+                        return false;
+                    }
+                    return MoveUtil.isLegalEPMove(this, fromIndex);
+                }
+
+                if (sideToMove == WHITE) {
+                    if (fromIndex > toIndex) {
+                        return false;
+                    }
+                    // 2-move
+                    if (toIndex - fromIndex == 16 && (allPieces & Square.getByIndex(fromIndex + 8).bitboard) != 0) {
+                        return false;
+                    }
+                } else {
+                    if (fromIndex < toIndex) {
+                        return false;
+                    }
+                    // 2-move
+                    if (fromIndex - toIndex == 16 && (allPieces & Square.getByIndex(fromIndex - 8).bitboard) != 0) {
+                        return false;
+                    }
+                }
+                break;
+            case BISHOP:
+                // fall-through
+            case ROOK:
+                // fall-through
+            case QUEEN:
+                if ((SEGMENTS[fromIndex][toIndex] & allPieces) != 0) {
+                    return false;
+                }
+                break;
+            case KING:
+                if (MoveEncoder.isCastlingMove(move)) {
+                    long castlingIndexes = CastlingUtil.getCastlingIndexes(this);
+                    while (castlingIndexes != 0) {
+                        if (toIndex == Long.numberOfTrailingZeros(castlingIndexes)) {
+                            return CastlingUtil.isValidCastlingMove(this, fromIndex, toIndex);
+                        }
+                        castlingIndexes &= castlingIndexes - 1;
+                    }
+                    return false;
+                }
+                return !MoveUtil.isSquareAttacked(this, MoveEncoder.getToIndex(move));
+        }
+
+        if ((fromSquare & pinnedPieces) != 0) {
+            return (pinMaskSegment(fromIndex) & toSquare) != 0;
+        }
+
+        if (checkingPieces != 0) {
+            if (attackedPieceIndex == 0) {
+                return !MoveUtil.isInCheck(kingIndex[sideToMove], sideToMove, pieces[sideToMoveInverse],
+                        allPieces ^ Square.getByIndex(MoveEncoder.getFromIndex(move)).bitboard ^
+                                Square.getByIndex(MoveEncoder.getToIndex(move)).bitboard);
+            } else {
+                if (Long.bitCount(checkingPieces) == 2) {
+                    return false;
+                }
+                return (toSquare & checkingPieces) != 0;
+            }
+        }
+
+        return true;
+    }
+
+    public long pinMaskSegment(int direction) {
+        final long beam = PINNED_MOVEMENT[direction][kingIndex[sideToMove]];
+        if ((beam & checkingPieces) != 0) {
+            int checkingPieceIndex = Long.numberOfTrailingZeros(beam & checkingPieces);
+            return SEGMENTS[kingIndex[sideToMove]][checkingPieceIndex] | (1L << checkingPieceIndex);
+        }
+        return 0;
     }
 
     public void printBoard() {
@@ -391,6 +419,60 @@ public class ChessBoard {
         }
 
         init();
+    }
+
+    public String getFen() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 63; i >= 0; i--) {
+            if ((pieces[WHITE][ALL] & Square.getByIndex(i).bitboard) != 0) {
+                sb.append(ASCII_PIECES[WHITE][piecesIndexBoard[i]]);
+            } else {
+                sb.append(ASCII_PIECES[BLACK][piecesIndexBoard[i]]);
+            }
+            if (i % 8 == 0 && i != 0) {
+                sb.append("/");
+            }
+        }
+
+        // color to move
+        sb.append(" ").append(sideToMove == WHITE ? "w" : "b").append(" ");
+
+        // castling rights
+        if (castlingRights == 0) {
+            sb.append("-");
+        } else {
+            if ((castlingRights & 8) != 0) { // 1000
+                sb.append("K");
+            }
+            if ((castlingRights & 4) != 0) { // 0100
+                sb.append("Q");
+            }
+            if ((castlingRights & 2) != 0) { // 0010
+                sb.append("k");
+            }
+            if ((castlingRights & 1) != 0) { // 0001
+                sb.append("q");
+            }
+        }
+
+        // en passant
+        sb.append(" ");
+        if (epIndex == 0) {
+            sb.append("-");
+        } else {
+            sb.append(Character.toString(104 - epIndex % 8)).append(epIndex / 8 + 1);
+        }
+
+        String fen = sb.toString();
+        fen = fen.replaceAll("11111111", "8");
+        fen = fen.replaceAll("1111111", "7");
+        fen = fen.replaceAll("111111", "6");
+        fen = fen.replaceAll("11111", "5");
+        fen = fen.replaceAll("1111", "4");
+        fen = fen.replaceAll("111", "3");
+        fen = fen.replaceAll("11", "2");
+
+        return fen;
     }
 
     private void setPieces(String fenPieces) {
@@ -469,33 +551,6 @@ public class ChessBoard {
                     pieces[BLACK][KING] |= Square.getByIndex(position).bitboard;
                     pieces[BLACK][ALL] |= Square.getByIndex(position--).bitboard;
                     break;
-            }
-        }
-    }
-
-    public void setCheckingPinnedDiscoveredPieces() {
-        pinnedPieces = 0;
-        discoveredPieces = 0;
-        checkingPieces = pieces[sideToMoveInverse][KNIGHT] & PrecalculatedMoves.KNIGHT_MOVES[kingIndex[sideToMove]]
-                | pieces[sideToMoveInverse][PAWN] & PrecalculatedMoves.PAWN_ATTACKS[sideToMove][kingIndex[sideToMove]];
-
-        int enemyColor;
-        long pinnedPiece;
-        for (int kingColor = WHITE; kingColor <= BLACK; kingColor++) {
-
-            enemyColor = kingColor ^ 1;
-
-            long slidingCheckingPiece = (pieces[enemyColor][BISHOP] | pieces[enemyColor][QUEEN]) & PrecalculatedMoves.getBishopAttack(kingIndex[kingColor], 0L)
-                    | (pieces[enemyColor][ROOK] | pieces[enemyColor][QUEEN]) & PrecalculatedMoves.getRookAttack(kingIndex[kingColor], 0L);
-            while (slidingCheckingPiece != 0) {
-                pinnedPiece = SEGMENTS[kingIndex[kingColor]][Long.numberOfTrailingZeros(slidingCheckingPiece)] & allPieces;
-                if (pinnedPiece == 0) {
-                    checkingPieces |= Long.lowestOneBit(slidingCheckingPiece);
-                } else if (Long.bitCount(pinnedPiece) == 1) {
-                    pinnedPieces |= pinnedPiece & pieces[kingColor][ALL];
-                    discoveredPieces |= pinnedPiece & pieces[enemyColor][ALL];
-                }
-                slidingCheckingPiece &= slidingCheckingPiece - 1;
             }
         }
     }
