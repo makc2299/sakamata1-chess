@@ -12,6 +12,8 @@ public class EngineMain {
 
     private static ChessBoard board;
 
+    public static boolean pondering = false;
+
     private static Thread searchThread;
     private static Thread timeThread;
     private static Thread infoThread;
@@ -56,6 +58,7 @@ public class EngineMain {
                 break;
             case "quit":
                 System.exit(0);
+
         }
     }
 
