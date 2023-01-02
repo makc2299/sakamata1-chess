@@ -27,4 +27,23 @@ public class Util {
         }
         System.out.println("   a b c d e f g h\n");
     }
+
+    public static void printPiecesIndexBoard(int[] piecesIndex, int indent) {
+        for (int i = 63; i >= 0; i-= 8) {
+            System.out.print(i / 8 + 1 + "  ");
+            for (int j = i; j > (i - 8); j--) {
+                System.out.printf("%" + indent + "d", piecesIndex[j]);
+            }
+            System.out.println();
+        }
+        System.out.print("   ");
+        for (char c :  new char[] {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'}) {
+            System.out.printf("%" + indent + "c", c);
+        }
+        System.out.println("\n");
+    }
+
+    public static String indexToSquare(int ind) {
+        return "" + (char) ('h' - ind % 8) + "" + (ind / 8 + 1);
+    }
 }

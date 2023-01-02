@@ -124,6 +124,10 @@ public class MoveEncoder {
         return (move & MASK_QUIET) == 0;
     }
 
+    public static boolean isCapture(final int move) {
+        return (move & MASK_ATTACK) != 0 || getMoveType(move) == TYPE_EP;
+    }
+
     public static boolean isNormalMove(final int move) {
         return getMoveType(move) == TYPE_NORMAL;
     }

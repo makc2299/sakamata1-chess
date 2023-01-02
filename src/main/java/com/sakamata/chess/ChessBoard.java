@@ -318,7 +318,9 @@ public class ChessBoard {
         }
 
         if ((fromSquare & pinnedPieces) != 0) {
-            return (pinMaskSegment(fromIndex) & toSquare) != 0;
+            if ((PINNED_MOVEMENT[fromIndex][kingIndex[sideToMove]] & toSquare) == 0) {
+                return false;
+            }
         }
 
         if (checkingPieces != 0) {
@@ -335,15 +337,6 @@ public class ChessBoard {
         }
 
         return true;
-    }
-
-    public long pinMaskSegment(int direction) {
-        final long beam = PINNED_MOVEMENT[direction][kingIndex[sideToMove]];
-        if ((beam & checkingPieces) != 0) {
-            int checkingPieceIndex = Long.numberOfTrailingZeros(beam & checkingPieces);
-            return SEGMENTS[kingIndex[sideToMove]][checkingPieceIndex] | (1L << checkingPieceIndex);
-        }
-        return 0;
     }
 
     public void printBoard() {

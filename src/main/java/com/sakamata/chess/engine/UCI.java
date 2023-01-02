@@ -1,6 +1,7 @@
 package com.sakamata.chess.engine;
 
 import com.sakamata.chess.ChessBoard;
+import com.sakamata.chess.maintenance.Util;
 import com.sakamata.chess.move.MoveEncoder;
 
 import static com.sakamata.chess.engine.EngineConstants.AUTHOR_NAME;
@@ -18,7 +19,7 @@ public class UCI {
 
     public static int uciMoveToInt(ChessBoard board, String moveString) {
 
-        if (!moveString.matches("([a-g][1-8]){2}([qrbn])?")) {
+        if (!moveString.matches("([a-h][1-8]){2}([qrbn])?")) {
             throw new RuntimeException("Received move string does not match a variation of long algebraic notation for moves used in UCI protocol");
         }
 
@@ -79,5 +80,31 @@ public class UCI {
         }
 
         return move;
+    }
+
+    public static String intToUciMove(int move) {
+        int fromIndex = MoveEncoder.getFromIndex(move);
+        int toIndex = MoveEncoder.getToIndex(move);
+        String moveString = Util.indexToSquare(fromIndex) + Util.indexToSquare(toIndex);
+
+        if (MoveEncoder.isPromotion(move)) {
+            int promotionPeace = MoveEncoder.getMoveType(move);
+            if (promotionPeace == MoveEncoder.TYPE_PROMOTION_Q) {
+                moveString += "q";
+            } else if (promotionPeace == MoveEncoder.TYPE_PROMOTION_N) {
+                moveString += "n";
+            } else if (promotionPeace == MoveEncoder.TYPE_PROMOTION_R) {
+                moveString += "r";
+            } else if (promotionPeace == MoveEncoder.TYPE_PROMOTION_B) {
+                moveString += "b";
+            }
+        }
+
+        return moveString;
+    }
+
+    public static void sendBestMove(String move) {
+        // TODO add ponder to output
+        System.out.println("bestmove " + move);
     }
 }
