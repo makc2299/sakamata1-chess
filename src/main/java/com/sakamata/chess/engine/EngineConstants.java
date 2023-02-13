@@ -6,4 +6,5 @@ public class EngineConstants {
     public static final String AUTHOR_NAME = "Yukhimets MV";
     public static final boolean GENERATE_BR_PROMOTIONS = true;
 
+    public static final int MAX_DEPTH = 64;
 }

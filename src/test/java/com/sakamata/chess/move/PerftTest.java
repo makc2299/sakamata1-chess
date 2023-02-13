@@ -1,8 +1,9 @@
 package com.sakamata.chess.move;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.sakamata.chess.ChessBoard;
+import com.sakamata.chess.engine.UCI;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -40,6 +41,8 @@ public class PerftTest {
 
         MoveGenerator.generateLegalMoves(board, moveHolder);
         MoveGenerator.generateLegalAttacks(board, moveHolder);
+        int boardFeatures = BoardEncoder.createBoardImprint(board.epIndex, board.castlingRights);
+        long startZobrist = board.zobristKey;
 
         int counter = 0;
         for (int i = 0; i < moveHolder.count; i++) {
@@ -47,7 +50,9 @@ public class PerftTest {
             int move = moveHolder.moves[i];
             board.makeMove(move);
             counter+= perft(board, new MoveHolder(), depth - 1);
-            board.unmakeMove(move);
+            board.unmakeMove(move, boardFeatures);
+
+            assertEquals(board.zobristKey, startZobrist);
         }
         return counter;
     }
@@ -59,6 +64,8 @@ public class PerftTest {
 
         MoveGenerator.generateLegalMoves(board, moveHolder);
         MoveGenerator.generateLegalAttacks(board, moveHolder);
+        int boardFeatures = BoardEncoder.createBoardImprint(board.epIndex, board.castlingRights);
+        long startZobrist = board.zobristKey;
 
         for (int i = 0; i < moveHolder.count; i++) {
 
@@ -66,7 +73,16 @@ public class PerftTest {
             board.makeMove(move);
             nodesCounter.increaseCounter(move, ply);
             perftByPly(board, new MoveHolder(), depth - 1, nodesCounter, ply + 1);
-            board.unmakeMove(move);
+            board.unmakeMove(move, boardFeatures);
+
+            if (board.zobristKey != startZobrist) {
+                board.printBoard();
+                System.out.println("Move to make " + move + " " + UCI.intToUciMove(move));
+                System.out.println(board.getFen());
+                System.out.println("startZobrist = " + startZobrist);
+                System.out.println("board.zobristKey = " + board.zobristKey);
+                assertEquals(board.zobristKey, startZobrist);
+            }
         }
     }
 
