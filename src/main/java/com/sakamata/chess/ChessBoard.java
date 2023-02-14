@@ -1,6 +1,7 @@
 package com.sakamata.chess;
 
 import com.sakamata.chess.maintenance.ChessConstants;
+import com.sakamata.chess.move.BoardEncoder;
 import com.sakamata.chess.move.MoveEncoder;
 import com.sakamata.chess.move.MoveUtil;
 import com.sakamata.chess.move.PrecalculatedMoves;
@@ -25,6 +26,7 @@ public class ChessBoard {
     public int fullMoveCounter;
 
     public int phase;
+    public long zobristKey;
     public long checkingPieces, pinnedPieces, discoveredPieces;
 
     public ChessBoard() {
@@ -45,7 +47,9 @@ public class ChessBoard {
         long toMask = 1L << toIndex;
         final long fromToMask = (1L << fromIndex) ^ toMask;
 
+        zobristKey ^= Zobrist.piece[sideToMove][sourcePieceIndex][fromIndex] ^ Zobrist.piece[sideToMove][sourcePieceIndex][toIndex];
         if (epIndex != 0) {
+            zobristKey ^= Zobrist.epIndex[epIndex];
             epIndex = 0;
         }
 
@@ -60,12 +64,14 @@ public class ChessBoard {
                     pieces[sideToMove][PAWN] ^= toMask;
                     pieces[sideToMove][MoveEncoder.getMoveType(move)] |= toMask;
                     piecesIndexBoard[toIndex] = MoveEncoder.getMoveType(move);
+                    zobristKey ^= Zobrist.piece[sideToMove][PAWN][toIndex] ^ Zobrist.piece[sideToMove][MoveEncoder.getMoveType(move)][toIndex];
                 } else {
                     // 2-move
                     if (SEGMENTS[fromIndex][toIndex] != 0) {
                         if ((PrecalculatedMoves.PAWN_ATTACKS[sideToMove][Long.numberOfTrailingZeros(SEGMENTS[fromIndex][toIndex])]
                                 & pieces[sideToMoveInverse][PAWN]) != 0) {
                             epIndex = Long.numberOfTrailingZeros(SEGMENTS[fromIndex][toIndex]);
+                            zobristKey ^= Zobrist.epIndex[epIndex];
                         }
                     }
                 }
@@ -73,7 +79,9 @@ public class ChessBoard {
 
             case ROOK:
                 if (castlingRights != 0) {
+                    zobristKey ^= Zobrist.castling[castlingRights];
                     castlingRights = CastlingUtil.getCastlingRightsAfterRookMovedOrAttacked(castlingRights, fromIndex);
+                    zobristKey ^= Zobrist.castling[castlingRights];
                 }
                 break;
 
@@ -83,7 +91,9 @@ public class ChessBoard {
                     if (MoveEncoder.isCastlingMove(move)) {
                         CastlingUtil.castleRookUpdate(this, toIndex);
                     }
+                    zobristKey ^= Zobrist.castling[castlingRights];
                     castlingRights = CastlingUtil.getCastlingRightsAfterKingMoved(castlingRights, fromIndex);
+                    zobristKey ^= Zobrist.castling[castlingRights];
                 }
         }
 
@@ -99,24 +109,29 @@ public class ChessBoard {
                 }
                 pieces[sideToMoveInverse][ALL] ^= toMask;
                 pieces[sideToMoveInverse][PAWN] ^= toMask;
+                zobristKey ^= Zobrist.piece[sideToMoveInverse][PAWN][toIndex];
                 break;
             case ROOK:
                 if (castlingRights != 0) {
+                    zobristKey ^= Zobrist.castling[castlingRights];
                     castlingRights = CastlingUtil.getCastlingRightsAfterRookMovedOrAttacked(castlingRights, toIndex);
+                    zobristKey ^= Zobrist.castling[castlingRights];
                 }
                 // fall-through
             default:
                 pieces[sideToMoveInverse][ALL] ^= toMask;
                 pieces[sideToMoveInverse][attackedPieceIndex] ^= toMask;
+                zobristKey ^= Zobrist.piece[sideToMoveInverse][attackedPieceIndex][toIndex];
         }
 
         allPieces = pieces[sideToMove][ALL] | pieces[sideToMoveInverse][ALL];
         emptySpaces = ~allPieces;
         changeSideToMove();
+        zobristKey ^= Zobrist.sideToMove;
         setCheckingPinnedDiscoveredPieces();
     }
 
-    public void unmakeMove(final int move) {
+    public void unmakeMove(final int move, final int boardFeatures) {
 
         final int fromIndex = MoveEncoder.getFromIndex(move);
         int toIndex = MoveEncoder.getToIndex(move);
@@ -126,6 +141,7 @@ public class ChessBoard {
         long toMask = 1L << toIndex;
         final long fromToMask = (1L << fromIndex) ^ toMask;
 
+        zobristKey ^= Zobrist.piece[sideToMoveInverse][sourcePieceIndex][fromIndex] ^ Zobrist.piece[sideToMoveInverse][sourcePieceIndex][toIndex];
         // undo move
         pieces[sideToMoveInverse][ALL] ^= fromToMask;
         pieces[sideToMoveInverse][sourcePieceIndex] ^= fromToMask;
@@ -139,21 +155,34 @@ public class ChessBoard {
                 if (MoveEncoder.isPromotion(move)) {
                     pieces[sideToMoveInverse][PAWN] ^= toMask;
                     pieces[sideToMoveInverse][MoveEncoder.getMoveType(move)] ^= toMask;
+                    zobristKey ^= Zobrist.piece[sideToMoveInverse][PAWN][toIndex] ^ Zobrist.piece[sideToMoveInverse][MoveEncoder.getMoveType(move)][toIndex];
                 } else {
-//                    pawnZobristKey ^= Zobrist.piece[colorToMoveInverse][PAWN][toIndex];
+                    if (SEGMENTS[fromIndex][toIndex] != 0) {
+                        if ((PrecalculatedMoves.PAWN_ATTACKS[sideToMoveInverse][Long.numberOfTrailingZeros(SEGMENTS[fromIndex][toIndex])]
+                                & pieces[sideToMove][PAWN]) != 0) {
+                            zobristKey ^= Zobrist.epIndex[epIndex];
+                            epIndex = 0;
+                        }
+                    }
                 }
                 break;
             case ROOK:
-                if (MoveEncoder.getCastling(move) != 0) {
-                    castlingRights = MoveEncoder.getCastling(move);
+                if (BoardEncoder.getCastling(boardFeatures) != 0) {
+                    zobristKey ^= Zobrist.castling[castlingRights];
+                    castlingRights = BoardEncoder.getCastling(boardFeatures);
+                    zobristKey ^= Zobrist.castling[castlingRights];
                 }
                 break;
             case KING:
                 if (MoveEncoder.isCastlingMove(move)) {
                     CastlingUtil.uncastleRookUpdate(this, toIndex);
-                    castlingRights = MoveEncoder.getCastling(move);
-                } else if (MoveEncoder.getCastling(move) != 0) {
-                    castlingRights = MoveEncoder.getCastling(move);
+                    zobristKey ^= Zobrist.castling[castlingRights];
+                    castlingRights = BoardEncoder.getCastling(boardFeatures);
+                    zobristKey ^= Zobrist.castling[castlingRights];
+                } else if (BoardEncoder.getCastling(boardFeatures) != 0) {
+                    zobristKey ^= Zobrist.castling[castlingRights];
+                    castlingRights = BoardEncoder.getCastling(boardFeatures);
+                    zobristKey ^= Zobrist.castling[castlingRights];
                 }
                 kingIndex[sideToMoveInverse] = fromIndex;
         }
@@ -169,20 +198,34 @@ public class ChessBoard {
                     toIndex += EN_PASSANT_SHIFT[sideToMove];
                     toMask = Square.getByIndex(toIndex).bitboard;
                 }
+                zobristKey ^= Zobrist.piece[sideToMove][PAWN][toIndex];
+                pieces[sideToMove][ALL] |= toMask;
+                pieces[sideToMove][PAWN] |= toMask;
+                break;
             case ROOK:
-                if (MoveEncoder.getCastling(move) != 0) {
-                    castlingRights = MoveEncoder.getCastling(move);
+                if (BoardEncoder.getCastling(boardFeatures) != 0) {
+                    zobristKey ^= Zobrist.castling[castlingRights];
+                    castlingRights = BoardEncoder.getCastling(boardFeatures);
+                    zobristKey ^= Zobrist.castling[castlingRights];
                 }
                 // fall-through
             default:
                 pieces[sideToMove][ALL] |= toMask;
                 pieces[sideToMove][attackedPieceIndex] |= toMask;
+                zobristKey ^= Zobrist.piece[sideToMove][attackedPieceIndex][toIndex];
+        }
+
+        // restore en passant
+        if (BoardEncoder.getEnPassant(boardFeatures) != 0) {
+            epIndex = BoardEncoder.getEnPassant(boardFeatures);
+            zobristKey ^= Zobrist.epIndex[epIndex];
         }
 
         piecesIndexBoard[toIndex] = attackedPieceIndex;
         allPieces = pieces[sideToMove][ALL] | pieces[sideToMoveInverse][ALL];
         emptySpaces = ~allPieces;
         changeSideToMove();
+        zobristKey ^= Zobrist.sideToMove;
         setCheckingPinnedDiscoveredPieces();
     }
 
@@ -209,6 +252,7 @@ public class ChessBoard {
         }
 
         setCheckingPinnedDiscoveredPieces();
+        setZobristKey();
     }
 
     public void changeSideToMove() {
@@ -240,6 +284,27 @@ public class ChessBoard {
                 }
                 slidingCheckingPiece &= slidingCheckingPiece - 1;
             }
+        }
+    }
+
+    public void setZobristKey() {
+        zobristKey = 0;
+
+        for (int color = WHITE; color <= BLACK; color++) {
+            for (int pieceType = PAWN; pieceType <= KING; pieceType++) {
+                long piecesBB = pieces[color][pieceType];
+                while (piecesBB != 0) {
+                    zobristKey ^= Zobrist.piece[color][pieceType][Long.numberOfTrailingZeros(piecesBB)];
+                    piecesBB &= piecesBB - 1;
+                }
+            }
+        }
+        zobristKey ^= Zobrist.castling[castlingRights];
+        if (epIndex != 0) {
+            zobristKey ^= Zobrist.epIndex[epIndex];
+        }
+        if (sideToMove == BLACK) {
+            zobristKey ^= Zobrist.sideToMove;
         }
     }
 
@@ -318,7 +383,9 @@ public class ChessBoard {
         }
 
         if ((fromSquare & pinnedPieces) != 0) {
-            return (pinMaskSegment(fromIndex) & toSquare) != 0;
+            if ((PINNED_MOVEMENT[fromIndex][kingIndex[sideToMove]] & toSquare) == 0) {
+                return false;
+            }
         }
 
         if (checkingPieces != 0) {
@@ -335,15 +402,6 @@ public class ChessBoard {
         }
 
         return true;
-    }
-
-    public long pinMaskSegment(int direction) {
-        final long beam = PINNED_MOVEMENT[direction][kingIndex[sideToMove]];
-        if ((beam & checkingPieces) != 0) {
-            int checkingPieceIndex = Long.numberOfTrailingZeros(beam & checkingPieces);
-            return SEGMENTS[kingIndex[sideToMove]][checkingPieceIndex] | (1L << checkingPieceIndex);
-        }
-        return 0;
     }
 
     public void printBoard() {
@@ -376,6 +434,7 @@ public class ChessBoard {
             if (i == 2) System.out.printf("    En passant: %s", (epIndex != EMPTY) ? Square.getByIndex(epIndex) : '-');
             if (i == 3) System.out.printf("    50 Move clock: %d", halfMoveClock);
             if (i == 4) System.out.printf("    Full move counter: %d", fullMoveCounter);
+            if (i == 5) System.out.printf("    Hash key: 0x%x", zobristKey);
             System.out.println();
         }
         System.out.println("   a b c d e f g h\n");

@@ -1,25 +1,85 @@
 package com.sakamata.chess.engine;
 
 import com.sakamata.chess.ChessBoard;
+import com.sakamata.chess.search.Search;
+import com.sakamata.chess.search.TimeUtil;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Scanner;
-import java.util.stream.Collectors;
 
-import static com.sakamata.chess.maintenance.ChessConstants.FEN_VALIDATION_REGEX;
+import static com.sakamata.chess.maintenance.ChessConstants.*;
 
 public class EngineMain {
 
     private static ChessBoard board;
 
     public static boolean pondering = false;
+    public volatile static boolean calculating = false;
 
-    private static Thread searchThread;
-    private static Thread timeThread;
-    private static Thread infoThread;
+    private static final Object synchronizedObject = new Object();
+
+    private static final Thread searchThread;
+    static {
+        searchThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (true) {
+                    try {
+                        synchronized (synchronizedObject) {
+                            while (!calculating) {
+                                synchronizedObject.wait();
+                            }
+                        }
+
+
+                        int move = new Search().findBestMove(board);
+
+                        calculating = false;
+                        timeThread.interrupt();
+                        UCI.sendBestMove(UCI.intToUciMove(move));
+                    } catch (Throwable t) {
+                        // TODO logger
+                    }
+                }
+            }
+        });
+        searchThread.setName("sakamata1-search");
+        searchThread.setDaemon(true);
+    }
+
+    private static final Thread timeThread;
+    static {
+        timeThread = new Thread(() -> {
+            while (true) {
+                try {
+                    // set thread to wait
+                    synchronized (synchronizedObject) {
+                        while (!calculating) {
+                            synchronizedObject.wait();
+                        }
+                    }
+
+                    if (TimeUtil.isIsTimeControl()) {
+                        Thread.sleep(TimeUtil.getTimeWindow());
+
+                        System.out.println(Search.isRunning);
+                        Search.isRunning = false;
+                    }
+
+                } catch (InterruptedException e) {
+                    // do nothing
+                }
+            }
+        });
+        timeThread.setName("sakamata1-time");
+        timeThread.setDaemon(true);
+    }
 
     public static void main(String[] args) {
         Thread.currentThread().setName("sakamata1-main");
+        searchThread.start();
+        timeThread.start();
         start();
     }
 
@@ -53,11 +113,18 @@ public class EngineMain {
             case "go":
                 inputGo(tokens);
                 break;
+            case "stop":
+                Search.isRunning = false;
+                break;
             case "print":
-                board.printBoard();
+                if (Objects.nonNull(board)) {
+                    board.printBoard();
+                }
                 break;
             case "quit":
                 System.exit(0);
+            default:
+                System.out.println("Unknown command: " + tokens[0]);
 
         }
     }
@@ -111,11 +178,96 @@ public class EngineMain {
             int move = UCI.uciMoveToInt(board, token);
             if (board.isValidMove(move)) {
                 board.makeMove(move);
+            } else {
+                System.out.println("Move : " + UCI.intToUciMove(move) + " (" + move + ") is not valid");
             }
         }
     }
 
+    /*
+    * go - start calculating on the current position set up with the "position" command.
+	       There are a number of commands that can follow this command, all will be sent in the same string.
+        * searchmoves  ....
+            restrict search to this moves only
+            Example: After "position startpos" and "go infinite searchmoves e2e4 d2d4"
+            the engine should only search the two moves e2e4 and d2d4 in the initial position.
+        * ponder - start searching in pondering mode.
+        * wtime - white has x msec left on the clock
+        * btime - black has x msec left on the clock
+        * winc - white increment per move in mseconds if x > 0
+        * binc - black increment per move in mseconds if x > 0
+        * movestogo - there are x moves to the next time control, this will only be sent if x > 0
+        * depth - search x plies only.
+        * nodes - search x nodes only,
+        * mate - search for a mate in x moves
+        * movetime - search exactly x mseconds
+        * infinite - search until the "stop" command. Do not exit the search without being told so in this mode!
+      Example:
+            go depth 6 wtime 180000 btime 100000 binc 1000 winc 1000 movetime 1000 movetogo 40
+            go movestogo 30 wtime 3600000 btime 3600000
+		    go wtime 40847 btime 48019 winc 0 binc 0 movestogo 20
+		    go
+		    go infinite
+		    go ponder
+     */
     private static void inputGo(String[] tokens) {
+
+        TimeUtil.reset();
+        Search.setFixedDepth(EngineConstants.MAX_DEPTH);
+        pondering = false;
+
+        if (tokens.length != 1) {
+            for (int i = 1; i < tokens.length; i++) {
+                switch (tokens[i]) {
+                    case "infinite":
+                        // TODO find out what to do in that case
+                        break;
+                    case "ponder":
+                        pondering = true;
+                        break;
+                    case "wtime":
+                        if (board.sideToMove == WHITE) {
+                            TimeUtil.setTotalTimeLeft(Integer.parseInt(tokens[i + 1]));
+                        }
+                        break;
+                    case "btime":
+                        if (board.sideToMove == BLACK) {
+                            TimeUtil.setTotalTimeLeft(Integer.parseInt(tokens[i + 1]));
+                        }
+                        break;
+                    case "winc":
+                        if (board.sideToMove == WHITE) {
+                            TimeUtil.setIncrement(Integer.parseInt(tokens[i + 1]));
+                        }
+                        break;
+                    case "binc":
+                        if (board.sideToMove == BLACK) {
+                            TimeUtil.setIncrement(Integer.parseInt(tokens[i + 1]));
+                        }
+                        break;
+                    case "movestogo":
+                        TimeUtil.setMovesToGo(Integer.parseInt(tokens[i + 1]));
+                        break;
+                    case "movetime":
+                        TimeUtil.setMoveTime(Integer.parseInt(tokens[i + 1]));
+                        break;
+                    case "depth":
+                        Search.setFixedDepth(Integer.parseInt(tokens[i + 1]));
+                        break;
+                }
+            }
+        }
+
+        TimeUtil.start();
+
+//        int move = new Search().findBestMove(board);
+//        UCI.sendBestMove(UCI.intToUciMove(move));
+
+        calculating = true;
+        // release all waiting threads
+        synchronized (synchronizedObject) {
+            synchronizedObject.notifyAll();
+        }
 
     }
 }

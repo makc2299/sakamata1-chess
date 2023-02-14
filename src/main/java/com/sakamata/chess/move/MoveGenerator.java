@@ -34,7 +34,7 @@ public class MoveGenerator {
         final long nonPinned = ~board.pinnedPieces;
         addKnightMoves(moveHolder, board.pieces[board.sideToMove][KNIGHT] & nonPinned, board.emptySpaces);
         addBishopMoves(moveHolder, board.pieces[board.sideToMove][BISHOP] & nonPinned, board.allPieces, board.emptySpaces);
-        addRookMoves(moveHolder, board.pieces[board.sideToMove][ROOK] & nonPinned, board, board.emptySpaces);
+        addRookMoves(moveHolder, board.pieces[board.sideToMove][ROOK] & nonPinned, board.allPieces, board.emptySpaces);
         addQueenMoves(moveHolder, board.pieces[board.sideToMove][QUEEN] & nonPinned, board.allPieces, board.emptySpaces);
         addPawnMoves(moveHolder, board.pieces[board.sideToMove][PAWN] & nonPinned, board, board.emptySpaces);
         addKingMoves(moveHolder, board);
@@ -47,7 +47,7 @@ public class MoveGenerator {
                         board.emptySpaces & PINNED_MOVEMENT[Long.numberOfTrailingZeros(piece)][board.kingIndex[board.sideToMove]]);
                 case BISHOP -> addBishopMoves(moveHolder, Long.lowestOneBit(piece), board.allPieces,
                         board.emptySpaces & PINNED_MOVEMENT[Long.numberOfTrailingZeros(piece)][board.kingIndex[board.sideToMove]]);
-                case ROOK -> addRookMoves(moveHolder, Long.lowestOneBit(piece), board,
+                case ROOK -> addRookMoves(moveHolder, Long.lowestOneBit(piece), board.allPieces,
                         board.emptySpaces & PINNED_MOVEMENT[Long.numberOfTrailingZeros(piece)][board.kingIndex[board.sideToMove]]);
                 case QUEEN -> addQueenMoves(moveHolder, Long.lowestOneBit(piece), board.allPieces,
                         board.emptySpaces & PINNED_MOVEMENT[Long.numberOfTrailingZeros(piece)][board.kingIndex[board.sideToMove]]);
@@ -92,7 +92,7 @@ public class MoveGenerator {
             addPawnMoves(moveHolder, board.pieces[board.sideToMove][PAWN] & nonPinned, board, inBetween);
             addKnightMoves(moveHolder, board.pieces[board.sideToMove][KNIGHT] & nonPinned, inBetween);
             addBishopMoves(moveHolder, board.pieces[board.sideToMove][BISHOP] & nonPinned, board.allPieces, inBetween);
-            addRookMoves(moveHolder, board.pieces[board.sideToMove][ROOK] & nonPinned, board, inBetween);
+            addRookMoves(moveHolder, board.pieces[board.sideToMove][ROOK] & nonPinned, board.allPieces, inBetween);
             addQueenMoves(moveHolder, board.pieces[board.sideToMove][QUEEN] & nonPinned, board.allPieces, inBetween);
         }
         addKingMoves(moveHolder, board);
@@ -135,12 +135,12 @@ public class MoveGenerator {
         }
     }
 
-    private static void addRookMoves(final MoveHolder moveHolder, long piece, final ChessBoard board, final long possiblePositions) {
+    private static void addRookMoves(final MoveHolder moveHolder, long piece, final long allPieces, final long possiblePositions) {
         while (piece != 0) {
             final int fromIndex = Long.numberOfTrailingZeros(piece);
-            long moves = PrecalculatedMoves.getRookAttack(fromIndex, board.allPieces) & possiblePositions;
+            long moves = PrecalculatedMoves.getRookAttack(fromIndex, allPieces) & possiblePositions;
             while (moves != 0) {
-                moveHolder.addMove(MoveEncoder.createRookMove(fromIndex, Long.numberOfTrailingZeros(moves), board.castlingRights));
+                moveHolder.addMove(MoveEncoder.createRookMove(fromIndex, Long.numberOfTrailingZeros(moves)));
                 moves &= moves - 1;
             }
             piece &= piece - 1;
@@ -206,7 +206,7 @@ public class MoveGenerator {
         while (moves != 0) {
             toIndex = Long.numberOfTrailingZeros(moves);
             if (!MoveUtil.isSquareAttacked(board, toIndex)) {
-                moveHolder.addMove(MoveEncoder.createKingMove(fromIndex, toIndex, board.castlingRights));
+                moveHolder.addMove(MoveEncoder.createKingMove(fromIndex, toIndex));
             }
             moves &= moves - 1;
         }
@@ -218,7 +218,7 @@ public class MoveGenerator {
                 final int castlingIndex = Long.numberOfTrailingZeros(castlingIndexes);
                 // no piece in between?
                 if (CastlingUtil.isValidCastlingMove(board, fromIndex, castlingIndex)) {
-                    moveHolder.addMove(MoveEncoder.createCastlingMove(fromIndex, castlingIndex, board.castlingRights));
+                    moveHolder.addMove(MoveEncoder.createCastlingMove(fromIndex, castlingIndex));
                 }
                 castlingIndexes &= castlingIndexes - 1;
             }
@@ -231,8 +231,7 @@ public class MoveGenerator {
             long moves = PrecalculatedMoves.KNIGHT_MOVES[fromIndex] & possiblePositions;
             while (moves != 0) {
                 final int toIndex = Long.numberOfTrailingZeros(moves);
-                moveHolder.addMove(MoveEncoder.createAttackMove(fromIndex, toIndex, KNIGHT, board.piecesIndexBoard[toIndex],
-                        board.castlingRights));
+                moveHolder.addAttackMove(MoveEncoder.createAttackMove(fromIndex, toIndex, KNIGHT, board.piecesIndexBoard[toIndex]));
                 moves &= moves - 1;
             }
             piece &= piece - 1;
@@ -245,8 +244,7 @@ public class MoveGenerator {
             long moves = PrecalculatedMoves.getBishopAttack(fromIndex, board.allPieces) & possiblePositions;
             while (moves != 0) {
                 final int toIndex = Long.numberOfTrailingZeros(moves);
-                moveHolder.addMove(MoveEncoder.createAttackMove(fromIndex, toIndex, BISHOP, board.piecesIndexBoard[toIndex],
-                        board.castlingRights));
+                moveHolder.addAttackMove(MoveEncoder.createAttackMove(fromIndex, toIndex, BISHOP, board.piecesIndexBoard[toIndex]));
                 moves &= moves - 1;
             }
             piece &= piece - 1;
@@ -259,8 +257,7 @@ public class MoveGenerator {
             long moves = PrecalculatedMoves.getRookAttack(fromIndex, board.allPieces) & possiblePositions;
             while (moves != 0) {
                 final int toIndex = Long.numberOfTrailingZeros(moves);
-                moveHolder.addMove(MoveEncoder.createAttackMove(fromIndex, toIndex, ROOK, board.piecesIndexBoard[toIndex],
-                        board.castlingRights));
+                moveHolder.addAttackMove(MoveEncoder.createAttackMove(fromIndex, toIndex, ROOK, board.piecesIndexBoard[toIndex]));
                 moves &= moves - 1;
             }
             piece &= piece - 1;
@@ -273,8 +270,7 @@ public class MoveGenerator {
             long moves = PrecalculatedMoves.getQueenAttack(fromIndex, board.allPieces) & possiblePositions;
             while (moves != 0) {
                 final int toIndex = Long.numberOfTrailingZeros(moves);
-                moveHolder.addMove(MoveEncoder.createAttackMove(fromIndex, toIndex, QUEEN, board.piecesIndexBoard[toIndex],
-                        board.castlingRights));
+                moveHolder.addAttackMove(MoveEncoder.createAttackMove(fromIndex, toIndex, QUEEN, board.piecesIndexBoard[toIndex]));
                 moves &= moves - 1;
             }
             piece &= piece - 1;
@@ -287,8 +283,7 @@ public class MoveGenerator {
         while (moves != 0) {
             final int toIndex = Long.numberOfTrailingZeros(moves);
             if (!MoveUtil.isSquareAttacked(board, toIndex)) {
-                moveHolder.addMove(MoveEncoder.createAttackMove(fromIndex, toIndex, KING, board.piecesIndexBoard[toIndex],
-                        board.castlingRights));
+                moveHolder.addAttackMove(MoveEncoder.createAttackMove(fromIndex, toIndex, KING, board.piecesIndexBoard[toIndex]));
             }
             moves &= moves - 1;
         }
@@ -301,7 +296,7 @@ public class MoveGenerator {
         long piece = board.pieces[board.sideToMove][PAWN] & PrecalculatedMoves.PAWN_ATTACKS[board.sideToMoveInverse][board.epIndex];
         while (piece != 0) {
             if (MoveUtil.isLegalEPMove(board, Long.numberOfTrailingZeros(piece))) {
-                moveHolder.addMove(MoveEncoder.createEPMove(Long.numberOfTrailingZeros(piece), board.epIndex));
+                moveHolder.addAttackMove(MoveEncoder.createEPMove(Long.numberOfTrailingZeros(piece), board.epIndex));
             }
             piece &= piece - 1;
         }
@@ -322,8 +317,7 @@ public class MoveGenerator {
                 moves = PrecalculatedMoves.PAWN_ATTACKS[WHITE][fromIndex] & enemies;
                 while (moves != 0) {
                     final int toIndex = Long.numberOfTrailingZeros(moves);
-                    moveHolder.addMove(MoveEncoder.createAttackMove(fromIndex, toIndex, PAWN, board.piecesIndexBoard[toIndex],
-                            board.castlingRights));
+                    moveHolder.addAttackMove(MoveEncoder.createAttackMove(fromIndex, toIndex, PAWN, board.piecesIndexBoard[toIndex]));
                     moves &= moves - 1;
                 }
                 piece &= piece - 1;
@@ -341,7 +335,7 @@ public class MoveGenerator {
 
                 // promotion attack
                 addPromotionAttacks(moveHolder, PrecalculatedMoves.PAWN_ATTACKS[WHITE][fromIndex] & enemies,
-                        fromIndex, board.piecesIndexBoard, board.castlingRights);
+                        fromIndex, board.piecesIndexBoard);
 
                 piece &= piece - 1;
             }
@@ -354,8 +348,7 @@ public class MoveGenerator {
                 moves = PrecalculatedMoves.PAWN_ATTACKS[BLACK][fromIndex] & enemies;
                 while (moves != 0) {
                     final int toIndex = Long.numberOfTrailingZeros(moves);
-                    moveHolder.addMove(MoveEncoder.createAttackMove(fromIndex, toIndex, PAWN, board.piecesIndexBoard[toIndex],
-                            board.castlingRights));
+                    moveHolder.addAttackMove(MoveEncoder.createAttackMove(fromIndex, toIndex, PAWN, board.piecesIndexBoard[toIndex]));
                     moves &= moves - 1;
                 }
                 piece &= piece - 1;
@@ -373,7 +366,7 @@ public class MoveGenerator {
 
                 // promotion attacks
                 addPromotionAttacks(moveHolder, PrecalculatedMoves.PAWN_ATTACKS[BLACK][fromIndex] & enemies,
-                        fromIndex, board.piecesIndexBoard, board.castlingRights);
+                        fromIndex, board.piecesIndexBoard);
 
                 piece &= piece - 1;
             }
@@ -389,19 +382,14 @@ public class MoveGenerator {
         }
     }
 
-    private static void addPromotionAttacks(final MoveHolder moveHolder, long moves, final int fromIndex,
-                                            final int[] pieceIndexes, final int castlingRights) {
+    private static void addPromotionAttacks(final MoveHolder moveHolder, long moves, final int fromIndex, final int[] pieceIndexes) {
         while (moves != 0) {
             final int toIndex = Long.numberOfTrailingZeros(moves);
-            moveHolder.addMove(MoveEncoder.createPromotionAttack(MoveEncoder.TYPE_PROMOTION_Q, fromIndex, toIndex,
-                    pieceIndexes[toIndex], castlingRights));
-            moveHolder.addMove(MoveEncoder.createPromotionAttack(MoveEncoder.TYPE_PROMOTION_N, fromIndex, toIndex,
-                    pieceIndexes[toIndex], castlingRights));
+            moveHolder.addAttackMove(MoveEncoder.createPromotionAttack(MoveEncoder.TYPE_PROMOTION_Q, fromIndex, toIndex, pieceIndexes[toIndex]));
+            moveHolder.addAttackMove(MoveEncoder.createPromotionAttack(MoveEncoder.TYPE_PROMOTION_N, fromIndex, toIndex, pieceIndexes[toIndex]));
             if (EngineConstants.GENERATE_BR_PROMOTIONS) {
-                moveHolder.addMove(MoveEncoder.createPromotionAttack(MoveEncoder.TYPE_PROMOTION_B, fromIndex, toIndex,
-                        pieceIndexes[toIndex], castlingRights));
-                moveHolder.addMove(MoveEncoder.createPromotionAttack(MoveEncoder.TYPE_PROMOTION_R, fromIndex, toIndex,
-                        pieceIndexes[toIndex], castlingRights));
+                moveHolder.addAttackMove(MoveEncoder.createPromotionAttack(MoveEncoder.TYPE_PROMOTION_B, fromIndex, toIndex, pieceIndexes[toIndex]));
+                moveHolder.addAttackMove(MoveEncoder.createPromotionAttack(MoveEncoder.TYPE_PROMOTION_R, fromIndex, toIndex, pieceIndexes[toIndex]));
             }
             moves &= moves - 1;
         }

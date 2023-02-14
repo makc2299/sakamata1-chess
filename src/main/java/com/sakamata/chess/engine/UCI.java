@@ -1,24 +1,23 @@
 package com.sakamata.chess.engine;
 
 import com.sakamata.chess.ChessBoard;
+import com.sakamata.chess.maintenance.Util;
 import com.sakamata.chess.move.MoveEncoder;
 
-import static com.sakamata.chess.engine.EngineConstants.AUTHOR_NAME;
-import static com.sakamata.chess.engine.EngineConstants.ENGINE_NAME;
 import static com.sakamata.chess.maintenance.ChessConstants.*;
 
 public class UCI {
 
     public static void sendUci() {
-        System.out.println("id name " + ENGINE_NAME);
-        System.out.println("id author " + AUTHOR_NAME);
+        System.out.println("id name " + EngineConstants.ENGINE_NAME);
+        System.out.println("id author " + EngineConstants.AUTHOR_NAME);
         // TODO set options for hashtable
         System.out.println("uciok");
     }
 
     public static int uciMoveToInt(ChessBoard board, String moveString) {
 
-        if (!moveString.matches("([a-g][1-8]){2}([qrbn])?")) {
+        if (!moveString.matches("([a-h][1-8]){2}([qrbn])?")) {
             throw new RuntimeException("Received move string does not match a variation of long algebraic notation for moves used in UCI protocol");
         }
 
@@ -50,12 +49,12 @@ public class UCI {
             } else if (pieceIndex == KING) {
                 if ((fromIndex - toIndex == 2 || fromIndex - toIndex == -2)) {
                     // castling
-                    move = MoveEncoder.createCastlingMove(fromIndex, toIndex, board.castlingRights);
+                    move = MoveEncoder.createCastlingMove(fromIndex, toIndex);
                 } else {
-                    move = MoveEncoder.createKingMove(fromIndex, toIndex, board.castlingRights);
+                    move = MoveEncoder.createKingMove(fromIndex, toIndex);
                 }
             } else if (pieceIndex == ROOK) {
-                move = MoveEncoder.createRookMove(fromIndex, toIndex, board.castlingRights);
+                move = MoveEncoder.createRookMove(fromIndex, toIndex);
             } else {
                 move = MoveEncoder.createMove(fromIndex, toIndex, pieceIndex);
             }
@@ -64,20 +63,46 @@ public class UCI {
                 if (moveString.length() == 5) {
                     switch (moveString.charAt(4)) {
                         case 'n' -> move = MoveEncoder.createPromotionAttack(MoveEncoder.TYPE_PROMOTION_N, fromIndex, toIndex,
-                                pieceIndexAttacked, board.castlingRights);
+                                pieceIndexAttacked);
                         case 'r' -> move = MoveEncoder.createPromotionAttack(MoveEncoder.TYPE_PROMOTION_R, fromIndex, toIndex,
-                                pieceIndexAttacked, board.castlingRights);
+                                pieceIndexAttacked);
                         case 'b' -> move = MoveEncoder.createPromotionAttack(MoveEncoder.TYPE_PROMOTION_B, fromIndex, toIndex,
-                                pieceIndexAttacked, board.castlingRights);
+                                pieceIndexAttacked);
                         default -> move = MoveEncoder.createPromotionAttack(MoveEncoder.TYPE_PROMOTION_Q, fromIndex, toIndex,
-                                pieceIndexAttacked, board.castlingRights);
+                                pieceIndexAttacked);
                     }
                 }
             } else {
-                move = MoveEncoder.createAttackMove(fromIndex, toIndex, pieceIndex, pieceIndexAttacked, board.castlingRights);
+                move = MoveEncoder.createAttackMove(fromIndex, toIndex, pieceIndex, pieceIndexAttacked);
             }
         }
 
         return move;
+    }
+
+    public static String intToUciMove(int move) {
+        int fromIndex = MoveEncoder.getFromIndex(move);
+        int toIndex = MoveEncoder.getToIndex(move);
+        String moveString = Util.indexToSquare(fromIndex) + Util.indexToSquare(toIndex);
+
+        if (MoveEncoder.isPromotion(move)) {
+            int promotionPeace = MoveEncoder.getMoveType(move);
+            if (promotionPeace == MoveEncoder.TYPE_PROMOTION_Q) {
+                moveString += "q";
+            } else if (promotionPeace == MoveEncoder.TYPE_PROMOTION_N) {
+                moveString += "n";
+            } else if (promotionPeace == MoveEncoder.TYPE_PROMOTION_R) {
+                moveString += "r";
+            } else if (promotionPeace == MoveEncoder.TYPE_PROMOTION_B) {
+                moveString += "b";
+            }
+        }
+
+        return moveString;
+    }
+
+    public static void sendBestMove(String move) {
+        // TODO add ponder to output
+        System.out.println("bestmove " + move);
     }
 }
